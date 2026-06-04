@@ -7,6 +7,7 @@ function App() {
   const [targetId, setTargetId] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [isWaiting, setIsWaiting] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [connectionError, setConnectionError] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   
@@ -38,6 +39,7 @@ function App() {
       setConnectionError(err.message || 'Failed to connect. The ID might be in use.');
       setIsConnected(false);
       setIsWaiting(false);
+      setIsConnecting(false);
     });
 
     peerRef.current = peer;
@@ -48,6 +50,8 @@ function App() {
     
     conn.on('open', () => {
       setIsConnected(true);
+      setIsConnecting(false);
+      setIsWaiting(false);
       setConnectionError('');
     });
 
@@ -135,7 +139,10 @@ function App() {
 
   const handleConnect = (e) => {
     e.preventDefault();
-    // To connect, we still need a peer instance for ourselves
+    if (!targetId.trim()) return;
+    setIsConnecting(true);
+    setConnectionError('');
+
     if (!peerRef.current || peerRef.current.disconnected) {
        const tempPeer = new Peer();
        tempPeer.on('open', () => {
@@ -144,6 +151,7 @@ function App() {
        });
        tempPeer.on('error', (err) => {
           setConnectionError(err.message);
+          setIsConnecting(false);
        });
     } else {
       connectToPeer();
@@ -261,9 +269,10 @@ function App() {
           value={targetId}
           onChange={(e) => setTargetId(e.target.value)}
           placeholder="Enter the host's Room ID"
+          disabled={isConnecting}
         />
-        <button type="submit" className="btn btn-secondary" style={{ marginTop: '0.5rem' }}>
-          <Send size={20} /> Connect
+        <button type="submit" className="btn btn-secondary" style={{ marginTop: '0.5rem' }} disabled={isConnecting}>
+          {isConnecting ? 'Connecting...' : <><Send size={20} /> Connect</>}
         </button>
       </form>
     </div>
