@@ -72,7 +72,7 @@ function App() {
         setClipboardText(data.content);
       } else if (data && data.type === 'file-metadata') {
         incomingFileMeta = data.meta;
-      } else if (data instanceof ArrayBuffer || data instanceof Blob || (data && data.byteLength !== undefined)) {
+      } else if (data instanceof ArrayBuffer || data instanceof Uint8Array || data instanceof Blob || (data && (data.byteLength !== undefined || data.size !== undefined))) {
         if (incomingFileMeta) {
           const blob = new Blob([data], { type: incomingFileMeta.type });
           if (incomingFileMeta.isImage) {
@@ -160,7 +160,14 @@ function App() {
         type: 'file-metadata',
         meta: { name: file.name, type: file.type, isImage: isImage }
       });
-      connRef.current.send(file);
+      
+      const bufferReader = new FileReader();
+      bufferReader.onload = (e) => {
+        if (connRef.current && isConnected) {
+          connRef.current.send(e.target.result);
+        }
+      };
+      bufferReader.readAsArrayBuffer(file);
     }
   };
 
