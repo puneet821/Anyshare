@@ -58,6 +58,7 @@ function App() {
 
   const setupConnection = (conn) => {
     connRef.current = conn;
+    let incomingFileMeta = null;
     
     conn.on('open', () => {
       setIsConnected(true);
@@ -67,10 +68,34 @@ function App() {
     });
 
     conn.on('data', (data) => {
-      if (data.type === 'text') {
+      if (data && data.type === 'text') {
         setClipboardText(data.content);
-      } else if (data.type === 'file') {
-        setClipboardFile(data.content);
+      } else if (data && data.type === 'file-metadata') {
+        incomingFileMeta = data.meta;
+      } else if (data instanceof ArrayBuffer || data instanceof Blob || (data && data.byteLength !== undefined)) {
+        if (incomingFileMeta) {
+          const blob = new Blob([data], { type: incomingFileMeta.type });
+          if (incomingFileMeta.isImage) {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+              setClipboardFile({
+                name: incomingFileMeta.name,
+                type: incomingFileMeta.type,
+                data: e.target.result,
+                isImage: true
+              });
+            };
+            reader.readAsDataURL(blob);
+          } else {
+            setClipboardFile({
+              name: incomingFileMeta.name,
+              type: incomingFileMeta.type,
+              data: blob,
+              isImage: false
+            });
+          }
+          incomingFileMeta = null;
+        }
       }
     });
 
@@ -120,22 +145,22 @@ function App() {
     
     const isImage = file.type.startsWith('image/');
     
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const fileData = {
-        name: file.name,
-        type: file.type,
-        data: event.target.result,
-        isImage: isImage
-      };
-      setClipboardFile(fileData);
-      sendData('file', fileData);
-    };
-    
     if (isImage) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setClipboardFile({ name: file.name, type: file.type, data: e.target.result, isImage: true });
+      };
       reader.readAsDataURL(file);
     } else {
-      reader.readAsArrayBuffer(file);
+      setClipboardFile({ name: file.name, type: file.type, data: file, isImage: false });
+    }
+
+    if (connRef.current && isConnected) {
+      connRef.current.send({
+        type: 'file-metadata',
+        meta: { name: file.name, type: file.type, isImage: isImage }
+      });
+      connRef.current.send(file);
     }
   };
 
