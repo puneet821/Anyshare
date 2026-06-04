@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Peer from 'peerjs';
-import { Copy, Image as ImageIcon, Send, Link as LinkIcon, Check, LogOut } from 'lucide-react';
+import { Copy, Image as ImageIcon, Send, Link as LinkIcon, Check, LogOut, File as FileIcon, Download } from 'lucide-react';
 
 function App() {
   const [peerId, setPeerId] = useState('');
@@ -12,10 +12,21 @@ function App() {
   const [isCopied, setIsCopied] = useState(false);
   
   const [clipboardText, setClipboardText] = useState('');
-  const [clipboardImage, setClipboardImage] = useState(null);
+  const [clipboardFile, setClipboardFile] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const peerRef = useRef(null);
   const connRef = useRef(null);
+
+  const peerOptions = {
+    config: {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:global.stun.twilio.com:3478' }
+      ]
+    },
+    debug: 2
+  };
 
   // Initialize PeerJS
   const initializePeer = (id) => {
@@ -23,7 +34,7 @@ function App() {
       peerRef.current.destroy();
     }
     
-    const peer = new Peer(id);
+    const peer = new Peer(id, peerOptions);
     
     peer.on('open', (id) => {
       setPeerId(id);
@@ -58,8 +69,8 @@ function App() {
     conn.on('data', (data) => {
       if (data.type === 'text') {
         setClipboardText(data.content);
-      } else if (data.type === 'image') {
-        setClipboardImage(data.content);
+      } else if (data.type === 'file') {
+        setClipboardFile(data.content);
       }
     });
 
@@ -104,17 +115,60 @@ function App() {
     sendData('text', newText);
   };
 
-  const handleImageUpload = (e) => {
-    const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const base64Image = event.target.result;
-        setClipboardImage(base64Image);
-        sendData('image', base64Image);
+  const processFile = (file) => {
+    if (!file) return;
+    
+    const isImage = file.type.startsWith('image/');
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const fileData = {
+        name: file.name,
+        type: file.type,
+        data: event.target.result,
+        isImage: isImage
       };
+      setClipboardFile(fileData);
+      sendData('file', fileData);
+    };
+    
+    if (isImage) {
       reader.readAsDataURL(file);
+    } else {
+      reader.readAsArrayBuffer(file);
     }
+  };
+
+  const handleFileUpload = (e) => {
+    processFile(e.target.files[0]);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      processFile(e.dataTransfer.files[0]);
+    }
+  };
+
+  const downloadFile = (fileObj) => {
+    const blob = new Blob([fileObj.data], { type: fileObj.type });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileObj.name;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const copyToClipboard = async () => {
@@ -160,7 +214,7 @@ function App() {
     setConnectionError('');
 
     if (!peerRef.current || peerRef.current.disconnected) {
-       const tempPeer = new Peer();
+       const tempPeer = new Peer(peerOptions);
        tempPeer.on('open', () => {
          peerRef.current = tempPeer;
          connectToPeer();
@@ -204,21 +258,36 @@ function App() {
           </button>
         </div>
 
-        <div className={`image-preview-container ${clipboardImage ? 'has-image' : ''}`}>
-          {clipboardImage ? (
-            <img src={clipboardImage} alt="Clipboard" />
+        <div 
+          className={`image-preview-container ${clipboardFile ? 'has-image' : ''} ${isDragging ? 'dragging' : ''}`}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
+          {clipboardFile ? (
+            clipboardFile.isImage ? (
+              <img src={clipboardFile.data} alt="Clipboard" />
+            ) : (
+              <div className="file-display">
+                <FileIcon size={40} opacity={0.8} />
+                <p><strong>{clipboardFile.name}</strong></p>
+                <button onClick={() => downloadFile(clipboardFile)} className="btn btn-secondary" style={{ marginTop: '1rem' }}>
+                  <Download size={16} /> Download File
+                </button>
+              </div>
+            )
           ) : (
             <div className="empty-image-state">
               <ImageIcon size={40} opacity={0.5} />
-              <p>No image pasted</p>
+              <p>{isDragging ? 'Drop file here!' : 'Drag & drop an image or APK here'}</p>
             </div>
           )}
           
           <div className="file-input-wrapper">
             <button className="btn btn-secondary">
-              <ImageIcon size={20} /> Choose Image to Sync
+              <ImageIcon size={20} /> Choose File
             </button>
-            <input type="file" accept="image/*" onChange={handleImageUpload} />
+            <input type="file" onChange={handleFileUpload} />
           </div>
         </div>
       </div>

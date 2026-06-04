@@ -205,8 +205,14 @@ body {
 
 .image-preview-container.has-image {
   border-style: solid;
-  padding: 0;
+  padding: 1rem;
   background: rgba(0,0,0,0.2);
+}
+
+.image-preview-container.dragging {
+  border-color: var(--accent);
+  background: rgba(59, 130, 246, 0.1);
+  transform: scale(1.02);
 }
 
 .image-preview-container img {
@@ -254,4 +260,15 @@ body {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
+}
+
+.file-display {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.4);
+  border-radius: 12px;
+  margin-bottom: 1rem;
 }
