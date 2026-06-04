@@ -63,9 +63,16 @@ function App() {
       }
     });
 
+    conn.on('error', (err) => {
+      setConnectionError('Connection error: ' + err.message);
+      setIsConnecting(false);
+      setIsConnected(false);
+    });
+
     conn.on('close', () => {
       setIsConnected(false);
       setIsWaiting(true); // Go back to waiting if they disconnect
+      setIsConnecting(false);
       connRef.current = null;
     });
   };
@@ -74,6 +81,15 @@ function App() {
     if (!targetId.trim()) return;
     const conn = peerRef.current.connect(targetId);
     setupConnection(conn);
+
+    // Add a timeout just in case it hangs
+    setTimeout(() => {
+      if (connRef.current && !connRef.current.open) {
+        setConnectionError('Connection timed out. Make sure the Host ID is correct and both devices are online.');
+        setIsConnecting(false);
+        conn.close();
+      }
+    }, 10000); // 10 second timeout
   };
 
   const sendData = (type, content) => {
